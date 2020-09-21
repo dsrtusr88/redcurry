@@ -134,13 +134,8 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
   if source_response.nil?
     source_response = sourceAPI.fetch :torrent, id: torrent_id
   end
-  source_fpath    = HTMLEntities.new.decode(source_response["torrent"]["filePath"]) 
+  source_fpath    = HTMLEntities.new.decode(source_response["torrent"]["filePath"]).gsub(/\u200E+/, "")
   source_srcdir   = "#{$SEEDING_FOLDER}/#{source_fpath}"
-
-  if source_response["torrent"]["media"] != "WEB"
-    puts "Skipping #{source_fpath} - RedCurry currently supports WEB only."
-    return
-  end
 
   source_short = $SOURCE_WEB_URL.split("://").last
   target_short = $TARGET_WEB_URL.split("://").last
@@ -174,6 +169,13 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     source_musicInfo[artistType.to_s].each do |artist|
       artists.push(HTMLEntities.new.decode(artist['name']))
       importance.push(typeNumber)
+    end
+  end
+
+  if source_response["torrent"]["hasLog"]
+    logfiles = source_response["torrent"]["fileList"].split("|||").map {|x| HTMLEntities.new.decode(x).gsub(/{{{\d+}}}/, '')}.select {|f| f.end_with? ".log"}
+    logfiles = logfiles.map do |log|
+      Faraday::UploadIO.new("#{source_srcdir}/#{log}", 'application/octet-stream')
     end
   end
 
@@ -211,6 +213,12 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
       target_payload[:remaster_record_label] = source_response["torrent"]["remasterRecordLabel"]
       target_payload[:remaster_catalogue_number] = source_response["torrent"]["remasterCatalogueNumber"]
       target_payload[:remaster_title] = source_response["torrent"]["remasterTitle"]
+    end
+    if source_response["torrent"]["scene"]
+      target_payload[:scene] = "on"
+    end
+    if source_response["torrent"]["hasLog"]
+      target_payload[:logfiles] = logfiles
     end
     targetAPI.upload(target_payload)
   rescue StandardError => e
