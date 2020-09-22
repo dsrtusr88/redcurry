@@ -118,6 +118,8 @@ target_index   = targetAPI.fetch :index
 target_authkey = target_index["authkey"]
 target_passkey = target_index["passkey"]
 
+$my_userid = sourceAPI.fetch(:index)["id"]
+
 def process_torrents(sourceAPI, folder)
   curries = []
   torrent_files = Dir.glob("#{folder}/*.torrent")
@@ -173,7 +175,8 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     banner = "[url=#{$SOURCE_WEB_URL}/torrents.php?torrentid=#{source_response["torrent"]["id"]}]#{$SOURCE_ACRONYM} [b]⟹[/b] #{$TARGET_ACRONYM}[/url]"
   end
   redcurry = "[size=1][b]{[/b] Uploaded with RedCurry [b]}[/b]"
-  thanks_to_uploader = "[b]{[/b] Thanks to [url=#{$SOURCE_WEB_URL}/user.php?id=#{source_response["torrent"]["userId"]}]#{source_response["torrent"]["username"]}[/url] for the [url=#{$SOURCE_WEB_URL}/torrents.php?torrentid=#{source_response["torrent"]["id"]}]original upload[/url] [b]}[/b][/size]"
+  uploader = source_response["torrent"]["userId"] == $my_userid ? "my" : source_response["torrent"]["username"]
+  thanks_to_uploader = "[b]{[/b] cross-post of [url=#{$SOURCE_WEB_URL}/user.php?id=#{source_response["torrent"]["userId"]}]#{uploader}[/url]#{uploader == "my" ? "" : "'s"} RED [url=#{$SOURCE_WEB_URL}/torrents.php?torrentid=#{source_response["torrent"]["id"]}]upload[/url] [b]}[/b][/size]"
 
   source_musicInfo = source_response["group"]["musicInfo"]
   artists = []
@@ -235,15 +238,15 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     end
     new_group = targetAPI.upload(target_payload)
   rescue StandardError => e
+    system("rm", "#{source_fpath}-#{target_short}.torrent")
     puts "FAILED: #{e.message}"
   else
-    puts "done: #{$TARGET_WEB_URL}/#{new_group}"
-  ensure
     if !folder.nil?
       system("mv", "#{source_fpath}-#{target_short}.torrent", folder)
     elsif File.directory?($NEW_TORRENT_DIR)
       system("mv", "#{source_fpath}-#{target_short}.torrent", $NEW_TORRENT_DIR)
     end
+    puts "done: #{$TARGET_WEB_URL}/#{new_group}"
   end
 end
 
