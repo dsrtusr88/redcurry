@@ -6,7 +6,7 @@ require "faraday-cookie_jar"
 require 'htmlentities'
 require 'bencode'
 require 'digest/sha1'
-require 'pp'
+require 'nokogiri'
 
 # -- configuration --
 # TODO: load from environment variables, and/or config file.
@@ -16,11 +16,13 @@ $TARGET_COOKIE = "./target_cookie.txt"
 $SOURCE_WEB_URL = "https://redacted.ch"
 $TARGET_WEB_URL = "https://orpheus.network"
 $TARGET_ANNOUNCE_HOST = "home.opsfet.ch"
-$TARGET_ANNOUNCE_FLAG = "OPS"
+$SOURCE_ACRONYM = "RED"
+$TARGET_ACRONYM = "OPS"
+$NEW_TORRENT_DIR = "./torrent-files"
 # -- configuration --
 
 if ARGV.empty? or ARGV.length != 1 or ((!ARGV.first.start_with? "#{$SOURCE_WEB_URL}/torrents.php" or !ARGV.first.include? "torrentid") and !File.directory?(ARGV[0]))
-  abort "Usage #1: ./red-to-ops.rb SOURCE_TORRENT_PL\nUsage #2: ./red-to-ops.rb /path/to/folder/with/.torrent/files"
+  abort "Usage #1: ./redcurry.rb \"SOURCE_TORRENT_PL\"\nUsage #2: ./red-to-ops.rb /path/to/folder/with/.torrent/files"
 end
 
 # cf. https://github.com/britishtea/whatcd/
@@ -80,7 +82,14 @@ class GazelleAPI
     res = connection.post "/upload.php", payload
     unless res.status == 302 && (res.headers["location"] =~ /torrents/)
       if res.status == 200
-        raise UploadError
+        html_response = Nokogiri::HTML(res.body)
+        html_response.css('div.thin > p').each do |para|
+          if para[:style].start_with? "color: red"
+            raise UploadError.new para.inner_text.strip
+          end
+        end
+        # if we got here, could not parse for more specific upload error
+        raise UploadError.new "Undefined."
       else
         raise APIError
       end
@@ -158,9 +167,12 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     producer: 7
   }
 
-  red_to_ops = "[url=#{$SOURCE_WEB_URL}/torrents.php?torrentid=#{source_response["torrent"]["id"]}][color=#57aaca]R[/color][color=#57b5bc]E[/color][color=#56c0ae]D[/color][color=#56cba0] [/color][color=#71b0c7]⟹[/color][color=#8c94ee] [/color][color=#a990f0]O[/color][color=#c78cf2]P[/color][color=#e488f4]S[/color][/url]"
+  banner = "[url=#{$SOURCE_WEB_URL}/torrents.php?torrentid=#{source_response["torrent"]["id"]}][color=#57aaca]#{$SOURCE_ACRONYM[0]}[/color][color=#57b5bc]#{$SOURCE_ACRONYM[1]}[/color][color=#56c0ae]#{$SOURCE_ACRONYM[2]}[/color][color=#56cba0] [/color][color=#71b0c7]⟹[/color][color=#8c94ee] [/color][color=#a990f0]#{$TARGET_ACRONYM[0]}[/color][color=#c78cf2]#{$TARGET_ACRONYM[1]}[/color][color=#e488f4]#{$TARGET_ACRONYM[2]}[/color][/url]"
+  if $SOURCE_ACRONYM.length != 3 || $TARGET_ACRONYM.length != 3
+    banner = "[url=#{$SOURCE_WEB_URL}/torrents.php?torrentid=#{source_response["torrent"]["id"]}]#{$SOURCE_ACRONYM} [b]⟹[/b] #{$TARGET_ACRONYM}[/url]"
+  end
   redcurry = "[size=1][b]{[/b] Uploaded with RedCurry [b]}[/b]"
-  thanks_to_uploader = "[b]{[/b] Thanks to [url=#{$SOURCE_WEB_URL}/user.php?id=#{source_response["torrent"]["userId"]}]#{source_response["torrent"]["username"]}[/url] for the [url=#{$SOURCE_WEB_URL}/torrents.php?torrentid=#{source_response["torrent"]["id"]}]original upload[/url] @ RED [b]}[/b][/size]"
+  thanks_to_uploader = "[b]{[/b] Thanks to [url=#{$SOURCE_WEB_URL}/user.php?id=#{source_response["torrent"]["userId"]}]#{source_response["torrent"]["username"]}[/url] for the [url=#{$SOURCE_WEB_URL}/torrents.php?torrentid=#{source_response["torrent"]["id"]}]original upload[/url] [b]}[/b][/size]"
 
   source_musicInfo = source_response["group"]["musicInfo"]
   artists = []
@@ -179,7 +191,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     end
   end
 
-  %x[/usr/local/bin/mktorrent -p -s "#{$TARGET_ANNOUNCE_FLAG}" -o "#{target_short}-#{source_fpath}.torrent" -a "https://#{$TARGET_ANNOUNCE_HOST}/#{target_passkey}/announce" "#{source_srcdir.gsub(/\$/,"\\$")}"]
+  %x[/usr/local/bin/mktorrent -p -s "#{$TARGET_ACRONYM}" -o "#{source_fpath}-#{target_short}.torrent" -a "https://#{$TARGET_ANNOUNCE_HOST}/#{target_passkey}/announce" "#{source_srcdir.gsub(/\$/,"\\$")}"]
 
   if $?.exitstatus != 0
     puts "SKIPPING #{source_fpath}: Error creating .torrent file."
@@ -195,14 +207,14 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
       title: HTMLEntities.new.decode(source_response["group"]["name"]),
       year: source_response["group"]["year"],
       auth: target_authkey,
-      file_input: Faraday::UploadIO.new("#{target_short}-#{source_fpath}.torrent", 'application/x-bittorrent'),
+      file_input: Faraday::UploadIO.new("#{source_fpath}-#{target_short}.torrent", 'application/x-bittorrent'),
       releasetype: source_response["group"]["releaseType"],
       format: source_response["torrent"]["format"],
       media: source_response["torrent"]["media"],
       bitrate: source_response["torrent"]["encoding"],
       album_desc: source_response["group"]["bbBody"],
-      #release_desc: "[align=center]" + red_to_ops + "\n" + redcurry + "[/align]" + "\n" + HTMLEntities.new.decode(source_response["torrent"]["description"]),
-      release_desc: "[align=center]" + red_to_ops + "\n" + redcurry + "\n" + thanks_to_uploader + "[/align]" + "\n" + HTMLEntities.new.decode(source_response["torrent"]["description"]),
+      #release_desc: "[align=center]" + banner + "\n" + redcurry + "[/align]" + "\n" + HTMLEntities.new.decode(source_response["torrent"]["description"]),
+      release_desc: "[align=center]" + banner + "\n" + redcurry + "\n" + thanks_to_uploader + "[/align]" + "\n" + HTMLEntities.new.decode(source_response["torrent"]["description"]),
       tags: source_response["group"]["tags"].join(","),
       image: source_response["group"]["wikiImage"],
       submit: "true"
@@ -220,14 +232,17 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     if source_response["torrent"]["hasLog"]
       target_payload[:logfiles] = logfiles
     end
-    targetAPI.upload(target_payload)
+    new_group = targetAPI.upload(target_payload)
   rescue StandardError => e
-    puts "FAILED: #{e.inspect}"
+    puts "FAILED: #{e.message}"
   else
+    puts "done: #{$TARGET_WEB_URL}/#{new_group}"
+  ensure
     if !folder.nil?
-      system("mv", "#{target_short}-#{source_fpath}.torrent", folder)
+      system("mv", "#{source_fpath}-#{target_short}.torrent", folder)
+    elsif File.directory?($NEW_TORRENT_DIR)
+      system("mv", "#{source_fpath}-#{target_short}.torrent", $NEW_TORRENT_DIR)
     end
-    puts "done!"
   end
 end
 
