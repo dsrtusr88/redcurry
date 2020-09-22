@@ -1,0 +1,11 @@
+seeding_folder: "/path/to/your/seeding/folder"
+torrent_folder: "./torrent-files"
+source:
+  cookie: "./source_cookie.txt"
+  url: "https://redacted.ch"
+  acronym: "RED"
+target:
+  cookie: "./target_cookie.txt"
+  url: "https://orpheus.network"
+  announce_host: "home.opsfet.ch"
+  acronym: "OPS"

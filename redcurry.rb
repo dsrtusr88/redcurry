@@ -1,24 +1,25 @@
 #!/usr/bin/env ruby
 
-require 'json'
+require "json"
+require "yaml"
 require "faraday"
 require "faraday-cookie_jar"
-require 'htmlentities'
-require 'bencode'
-require 'digest/sha1'
-require 'nokogiri'
+require "htmlentities"
+require "bencode"
+require "digest/sha1"
+require "nokogiri"
 
 # -- configuration --
-# TODO: load from environment variables, and/or config file.
-$SEEDING_FOLDER = "/path/to/your/seeding/folder"
-$SOURCE_COOKIE = "./source_cookie.txt"
-$TARGET_COOKIE = "./target_cookie.txt"
-$SOURCE_WEB_URL = "https://redacted.ch"
-$TARGET_WEB_URL = "https://orpheus.network"
-$TARGET_ANNOUNCE_HOST = "home.opsfet.ch"
-$SOURCE_ACRONYM = "RED"
-$TARGET_ACRONYM = "OPS"
-$NEW_TORRENT_DIR = "./torrent-files"
+config = YAML::load_file('./curry.yaml')
+$SEEDING_FOLDER = config["seeding_folder"]
+$SOURCE_COOKIE = config["source"]["cookie"]
+$TARGET_COOKIE = config["target"]["cookie"]
+$SOURCE_WEB_URL = config["source"]["url"]
+$TARGET_WEB_URL = config["target"]["url"]
+$TARGET_ANNOUNCE_HOST = config["target"]["announce_host"]
+$SOURCE_ACRONYM = config["source"]["acronym"]
+$TARGET_ACRONYM = config["target"]["acronym"]
+$NEW_TORRENT_DIR = config["torrent_folder"]
 # -- configuration --
 
 if ARGV.empty? or ARGV.length != 1 or ((!ARGV.first.start_with? "#{$SOURCE_WEB_URL}/torrents.php" or !ARGV.first.include? "torrentid") and !File.directory?(ARGV[0]))
@@ -89,7 +90,7 @@ class GazelleAPI
           end
         end
         # if we got here, could not parse for more specific upload error
-        raise UploadError.new "Undefined."
+        raise UploadError.new "Uncaught exception."
       else
         raise APIError
       end
