@@ -142,6 +142,52 @@ def process_torrents(sourceAPI, folder)
   return curries
 end
 
+def rlstype(source_rlstype)
+  ops_to_red = {
+    1 => 1,
+    3 => 3,
+    5 => 5,
+    6 => 6,
+    7 => 7,
+    8 => 21,
+    9 => 9,
+    10 => 17,
+    11 => 11,
+    12 => 21,
+    13 => 13,
+    14 => 14,
+    15 => 15,
+    16 => 16,
+    17 => 19,
+    18 => 18,
+    21 => 21
+  }
+  red_to_ops = {
+    1 => 1,
+    3 => 3,
+    5 => 5,
+    6 => 6,
+    7 => 7,
+    9 => 9,
+    11 => 11,
+    13 => 13,
+    14 => 14,
+    15 => 15,
+    16 => 16,
+    17 => 10,
+    18 => 18,
+    19 => 17,
+    21 => 21
+  }
+  if $SOURCE_ACRONYM == "OPS" && $TARGET_ACRONYM == "RED"
+    return ops_to_red[source_rlstype]
+  elsif $SOURCE_ACRONYM == "RED" && $TARGET_ACRONYM == "OPS"
+    return red_to_ops[source_rlstype]
+  else
+    return source_rlstype
+  end
+end
+
 def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, source_response = nil, folder = nil)  
   if source_response.nil?
     source_response = sourceAPI.fetch :torrent, id: torrent_id
@@ -208,6 +254,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     if $SOURCE_ACRONYM == "OPS"
       bbcode_description = "wikiBBcode"
     end
+    releasetype = rlstype(source_response["group"]["releaseType"])
     target_payload = {
       artists: artists,
       importance: importance,
@@ -216,7 +263,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
       year: source_response["group"]["year"],
       auth: target_authkey,
       file_input: Faraday::UploadIO.new("#{source_fpath}-#{target_short}.torrent", 'application/x-bittorrent'),
-      releasetype: source_response["group"]["releaseType"],
+      releasetype: releasetype,
       format: source_response["torrent"]["format"],
       media: source_response["torrent"]["media"],
       bitrate: source_response["torrent"]["encoding"],
