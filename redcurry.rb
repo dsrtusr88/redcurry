@@ -176,7 +176,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
   end
   redcurry = "[size=1][b]{[/b] Uploaded with RedCurry [b]}[/b]"
   uploader = source_response["torrent"]["userId"] == $my_userid ? "my" : source_response["torrent"]["username"]
-  thanks_to_uploader = "[b]{[/b] cross-post of [url=#{$SOURCE_WEB_URL}/user.php?id=#{source_response["torrent"]["userId"]}]#{uploader}[/url]#{uploader == "my" ? "" : "'s"} RED [url=#{$SOURCE_WEB_URL}/torrents.php?torrentid=#{source_response["torrent"]["id"]}]upload[/url] [b]}[/b][/size]"
+  thanks_to_uploader = "[b]{[/b] cross-post of [url=#{$SOURCE_WEB_URL}/user.php?id=#{source_response["torrent"]["userId"]}]#{uploader}[/url]#{uploader == "my" ? "" : "'s"} #{$SOURCE_ACRONYM} [url=#{$SOURCE_WEB_URL}/torrents.php?torrentid=#{source_response["torrent"]["id"]}]upload[/url] [b]}[/b][/size]"
 
   source_musicInfo = source_response["group"]["musicInfo"]
   artists = []
@@ -204,6 +204,10 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
 
   print "Currying: #{source_fpath} | #{source_short} ===> #{target_short} ... "
   begin
+    bbcode_description = "bbBody"
+    if $SOURCE_ACRONYM == "OPS"
+      bbcode_description = "wikiBBcode"
+    end
     target_payload = {
       artists: artists,
       importance: importance,
@@ -216,20 +220,18 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
       format: source_response["torrent"]["format"],
       media: source_response["torrent"]["media"],
       bitrate: source_response["torrent"]["encoding"],
-      album_desc: source_response["group"]["bbBody"],
+      album_desc: source_response["group"][bbcode_description],
       #release_desc: "[align=center]" + banner + "\n" + redcurry + "[/align]" + "\n" + HTMLEntities.new.decode(source_response["torrent"]["description"]),
       release_desc: "[align=center]" + banner + "\n" + redcurry + "\n" + thanks_to_uploader + "[/align]" + "\n" + HTMLEntities.new.decode(source_response["torrent"]["description"]),
       tags: source_response["group"]["tags"].join(","),
       image: source_response["group"]["wikiImage"],
       submit: "true"
     }
-    if source_response["torrent"]["remastered"]
-      target_payload[:remaster] = "on"
-      target_payload[:remaster_year] = source_response["torrent"]["remasterYear"]
-      target_payload[:remaster_record_label] = source_response["torrent"]["remasterRecordLabel"]
-      target_payload[:remaster_catalogue_number] = source_response["torrent"]["remasterCatalogueNumber"]
-      target_payload[:remaster_title] = source_response["torrent"]["remasterTitle"]
-    end
+    target_payload[:remaster] = "on"
+    target_payload[:remaster_year] = source_response["torrent"]["remasterYear"] == 0 ? source_response["group"]["year"] : source_response["torrent"]["remasterYear"]
+    target_payload[:remaster_record_label] = source_response["torrent"]["remasterRecordLabel"].empty? ? source_response["group"]["recordLabel"] : source_response["torrent"]["remasterRecordLabel"]
+    target_payload[:remaster_catalogue_number] = source_response["torrent"]["remasterCatalogueNumber"].empty? ? source_response["group"]["catalogueNumber"] : source_response["torrent"]["remasterCatalogueNumber"]
+    target_payload[:remaster_title] = source_response["torrent"]["remasterTitle"]
     if source_response["torrent"]["scene"]
       target_payload[:scene] = "on"
     end
