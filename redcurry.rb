@@ -241,7 +241,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     end
   end
 
-  %x[/usr/local/bin/mktorrent -p -s "#{$TARGET_ACRONYM}" -o "#{source_fpath}-#{target_short}.torrent" -a "https://#{$TARGET_ANNOUNCE_HOST}/#{target_passkey}/announce" "#{source_srcdir.gsub(/\$/,"\\$")}"]
+  %x[/usr/local/bin/mktorrent -p -s "#{$TARGET_ACRONYM}" -o "#{source_fpath.gsub(/\$/,"\\$")}-#{target_short}.torrent" -a "https://#{$TARGET_ANNOUNCE_HOST}/#{target_passkey}/announce" "#{source_srcdir.gsub(/\$/,"\\$")}"]
 
   if $?.exitstatus != 0
     puts "SKIPPING #{source_fpath}: Error creating .torrent file."
