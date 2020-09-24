@@ -133,7 +133,10 @@ def process_torrents(sourceAPI, folder)
     if meta.nil?
       puts "Skipping: #{torrent} => could not process file."
       next
-    elsif !meta["announce"].include? $SOURCE_ANNOUNCE_HOST
+    elsif meta["announce"].nil?
+      puts "Skipping: #{torrent} => could not parse announce URL."
+      next
+    elsif !meta["announce"].include?($SOURCE_ANNOUNCE_HOST)
       puts "Skipping: #{torrent} => announce host does not match configured source tracker."
       next
     end
