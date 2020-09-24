@@ -16,6 +16,7 @@ $SOURCE_COOKIE = config["source"]["cookie"]
 $TARGET_COOKIE = config["target"]["cookie"]
 $SOURCE_WEB_URL = config["source"]["url"]
 $TARGET_WEB_URL = config["target"]["url"]
+$SOURCE_ANNOUNCE_HOST = config["source"]["announce_host"]
 $TARGET_ANNOUNCE_HOST = config["target"]["announce_host"]
 $SOURCE_ACRONYM = config["source"]["acronym"]
 $TARGET_ACRONYM = config["target"]["acronym"]
@@ -131,6 +132,9 @@ def process_torrents(sourceAPI, folder)
     meta = BEncode.load_file(torrent)
     if meta.nil?
       puts "Skipping: #{torrent} => could not process file."
+      next
+    elsif !meta["announce"].include? $SOURCE_ANNOUNCE_HOST
+      puts "Skipping: #{torrent} => announce host does not match configured source tracker."
       next
     end
     infohash = Digest::SHA1.hexdigest(meta["info"].bencode)
