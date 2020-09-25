@@ -133,11 +133,18 @@ def process_torrents(sourceAPI, folder)
     if meta.nil?
       puts "Skipping: #{torrent} => could not process file."
       next
-    elsif meta["announce"].nil?
-      puts "Skipping: #{torrent} => could not parse announce URL."
-      next
-    elsif !meta["announce"].include?($SOURCE_ANNOUNCE_HOST)
-      puts "Skipping: #{torrent} => announce host does not match configured source tracker."
+    elsif !meta["announce"].nil?
+      if !meta["announce"].include?($SOURCE_ANNOUNCE_HOST)
+        puts "Skipping: #{torrent} => announce host does not match configured source tracker."
+        next
+      end
+    elsif !meta["announce-list"].nil?
+      if !meta["announce-list"].flatten.any? {|a| a.include? $SOURCE_ANNOUNCE_HOST}
+        puts "Skipping: #{torrent} => announce host does not match configured source tracker."
+        next
+      end
+    else
+      puts "Skipping: #{torrent} => could not parse an announce host for source tracker."
       next
     end
     infohash = Digest::SHA1.hexdigest(meta["info"].bencode)
