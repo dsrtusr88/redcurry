@@ -24,7 +24,7 @@ $NEW_TORRENT_DIR = config["torrent_folder"]
 # -- configuration --
 
 if ARGV.empty? or ARGV.length != 1 or ((!ARGV.first.start_with? "#{$SOURCE_WEB_URL}/torrents.php" or !ARGV.first.include? "torrentid") and !File.directory?(ARGV[0]))
-  abort "Usage #1: ./redcurry.rb \"SOURCE_TORRENT_PL\"\nUsage #2: ./red-to-ops.rb /path/to/folder/with/.torrent/files"
+  abort "Usage #1: ./redcurry.rb \"SOURCE_TORRENT_PL\"\nUsage #2: ./redcurry.rb /path/to/folder/with/.torrent/files"
 end
 
 $MKTORRENT = ""
