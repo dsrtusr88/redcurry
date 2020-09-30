@@ -27,12 +27,26 @@ if ARGV.empty? or ARGV.length != 1 or ((!ARGV.first.start_with? "#{$SOURCE_WEB_U
   abort "Usage #1: ./redcurry.rb \"SOURCE_TORRENT_PL\"\nUsage #2: ./red-to-ops.rb /path/to/folder/with/.torrent/files"
 end
 
+$MKTORRENT = ""
+mktorrents = %x[which -a mktorrent].split("\n")
+if mktorrents.empty?
+  abort "ERROR: Could not find mktorrent."
+end
+mktorrents.each do |mktorrent|
+  version = %x[#{mktorrent} -v 2>&1].scan(/mktorrent (\d).(\d)/).flatten.join(".")
+  if version.to_f >= 1.1
+    $MKTORRENT = mktorrent
+  end
+end
+abort "ERROR: mktorrent 1.1+ required." if $MKTORRENT.empty?
+
 # cf. https://github.com/britishtea/whatcd/
 class GazelleAPI
   AuthError    = Class.new StandardError
   APIError     = Class.new StandardError
   UploadError  = Class.new StandardError
 
+  attr_accessor :userid
   attr_reader :connection
 
   def initialize(tracker)
@@ -90,8 +104,7 @@ class GazelleAPI
             raise UploadError.new para.inner_text.strip
           end
         end
-        # if we got here, could not parse for more specific upload error
-        raise UploadError.new "Uncaught exception."
+        raise UploadError.new "Unidentified error. Trying uploading manually."
       else
         raise APIError
       end
@@ -119,14 +132,13 @@ target_index   = targetAPI.fetch :index
 target_authkey = target_index["authkey"]
 target_passkey = target_index["passkey"]
 
-$my_userid = sourceAPI.fetch(:index)["id"]
+sourceAPI.userid = sourceAPI.fetch(:index)["id"]
 
 def process_torrents(sourceAPI, folder)
   curries = []
   torrent_files = Dir.glob("#{folder}/*.torrent")
   if torrent_files.empty?
-    puts "No .torrent files found in #{folder}."
-    exit(1)
+    abort "No .torrent files found in #{folder}."
   end
   torrent_files.each do |torrent|
     meta = BEncode.load_file(torrent)
@@ -193,9 +205,9 @@ def rlstype(source_rlstype)
     19 => 17,
     21 => 21
   }
-  if $SOURCE_ACRONYM == "OPS" && $TARGET_ACRONYM == "RED"
+  if $SOURCE_ACRONYM == "OPS"
     return ops_to_red[source_rlstype]
-  elsif $SOURCE_ACRONYM == "RED" && $TARGET_ACRONYM == "OPS"
+  elsif $TARGET_ACRONYM == "OPS"
     return red_to_ops[source_rlstype]
   else
     return source_rlstype
@@ -235,7 +247,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     banner = "[url=#{$SOURCE_WEB_URL}/torrents.php?torrentid=#{source_response["torrent"]["id"]}]#{$SOURCE_ACRONYM} [b]⟹[/b] #{$TARGET_ACRONYM}[/url]"
   end
   redcurry = "[size=1][b]{[/b] Uploaded with RedCurry [b]}[/b]"
-  uploader = source_response["torrent"]["userId"] == $my_userid ? "my" : source_response["torrent"]["username"]
+  uploader = source_response["torrent"]["userId"] == sourceAPI.userid ? "my" : source_response["torrent"]["username"]
   thanks_to_uploader = "[b]{[/b] cross-post of [url=#{$SOURCE_WEB_URL}/user.php?id=#{source_response["torrent"]["userId"]}]#{uploader}[/url]#{uploader == "my" ? "" : "'s"} #{$SOURCE_ACRONYM} [url=#{$SOURCE_WEB_URL}/torrents.php?torrentid=#{source_response["torrent"]["id"]}]upload[/url] [b]}[/b][/size]"
 
   source_musicInfo = source_response["group"]["musicInfo"]
@@ -255,7 +267,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     end
   end
 
-  %x[/usr/local/bin/mktorrent -p -s "#{$TARGET_ACRONYM}" -o "#{source_fpath.gsub(/\$/,"\\$")}-#{target_short}.torrent" -a "https://#{$TARGET_ANNOUNCE_HOST}/#{target_passkey}/announce" "#{source_srcdir.gsub(/\$/,"\\$")}"]
+  %x[#{$MKTORRENT} -p -s "#{$TARGET_ACRONYM}" -o "#{source_fpath.gsub(/\$/,"\\$")}-#{target_short}.torrent" -a "https://#{$TARGET_ANNOUNCE_HOST}/#{target_passkey}/announce" "#{source_srcdir.gsub(/\$/,"\\$")}"]
 
   if $?.exitstatus != 0
     puts "SKIPPING #{source_fpath}: Error creating .torrent file."
@@ -282,7 +294,6 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
       media: source_response["torrent"]["media"],
       bitrate: source_response["torrent"]["encoding"],
       album_desc: source_response["group"][bbcode_description],
-      #release_desc: "[align=center]" + banner + "\n" + redcurry + "[/align]" + "\n" + HTMLEntities.new.decode(source_response["torrent"]["description"]),
       release_desc: "[align=center]" + banner + "\n" + redcurry + "\n" + thanks_to_uploader + "[/align]" + "\n" + HTMLEntities.new.decode(source_response["torrent"]["description"]),
       tags: source_response["group"]["tags"].join(","),
       image: source_response["group"]["wikiImage"],
@@ -300,7 +311,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
       target_payload[:logfiles] = logfiles
     end
     new_group = targetAPI.upload(target_payload)
-  rescue StandardError => e
+  rescue => e
     system("rm", "#{source_fpath}-#{target_short}.torrent")
     puts "FAILED: #{e.message}"
   else
@@ -317,8 +328,7 @@ torrent_id = ARGV.first.strip.split("torrentid=").last.to_i
 if torrent_id == 0
   curries = process_torrents(sourceAPI, File.absolute_path(ARGV[0]))
   if curries.empty?
-    puts "No .torrents to process."
-    exit(1)
+    abort "No .torrents to process."
   end
   curries.each do |task|
     curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, task[:source_response], task[:folder])
