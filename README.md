@@ -1,5 +1,5 @@
-![redcurry](https://i.imgur.com/ek9hoTf.png)
+![redcurry](https://i.imgur.com/XIt1iZd.jpg)
 
 # RedCurry
 
-*Curry from one gazelle to another.*
+*curry from one gazelle to another.*
