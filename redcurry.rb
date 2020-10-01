@@ -221,8 +221,8 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
   source_fpath    = HTMLEntities.new.decode(source_response["torrent"]["filePath"]).gsub(/\u200E+/, "")
   source_srcdir   = "#{$SEEDING_FOLDER}/#{source_fpath}"
 
-  source_short = $SOURCE_WEB_URL.split("://").last
-  target_short = $TARGET_WEB_URL.split("://").last
+  source_short = $SOURCE_WEB_URL.split("://").last.gsub(/[^[:alpha:]\.]/, "")
+  target_short = $TARGET_WEB_URL.split("://").last.gsub(/[^[:alpha:]\.]/, "")
 
   if source_fpath == ""
     abort "Music not enclosed in a folder. Report it!"
