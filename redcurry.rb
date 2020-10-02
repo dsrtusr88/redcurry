@@ -256,7 +256,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
   artist_types.each do |artistType, typeNumber|
     source_musicInfo[artistType.to_s].each do |artist|
       artists.push(HTMLEntities.new.decode(artist['name']))
-      importance.push(typeNumber)
+      importance.push(typeNumber.to_s)
     end
   end
 
