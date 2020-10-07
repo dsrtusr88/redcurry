@@ -9,23 +9,32 @@ require "bencode"
 require "digest/sha1"
 require "nokogiri"
 
-# -- configuration --
-config = YAML::load_file('./curry.yaml')
-$SEEDING_FOLDER = config["seeding_folder"]
-$SOURCE_COOKIE = config["source"]["cookie"]
-$TARGET_COOKIE = config["target"]["cookie"]
-$SOURCE_WEB_URL = config["source"]["url"]
-$TARGET_WEB_URL = config["target"]["url"]
-$SOURCE_ANNOUNCE_HOST = config["source"]["announce_host"]
-$TARGET_ANNOUNCE_HOST = config["target"]["announce_host"]
-$SOURCE_ACRONYM = config["source"]["acronym"]
-$TARGET_ACRONYM = config["target"]["acronym"]
-$NEW_TORRENT_DIR = config["torrent_folder"]
-# -- configuration --
-
-if ARGV.empty? or ARGV.length != 1 or ((!ARGV.first.start_with? "#{$SOURCE_WEB_URL}/torrents.php" or !ARGV.first.include? "torrentid") and !File.directory?(ARGV[0]))
-  abort "Usage #1: ./redcurry.rb \"SOURCE_TORRENT_PL\"\nUsage #2: ./redcurry.rb /path/to/folder/with/.torrent/files"
+if ARGV.empty? or ARGV.length != 3
+  abort "Usage #1: ./redcurry.rb \"SOURCE_TORRENT_PL\" SOURCE TARGET\nUsage #2: ./redcurry.rb /path/to/folder/with/.torrent/files SOURCE TARGET"
 end
+if !ARGV[0].include?("torrentid") and ARGV[0].to_i == 0 and !File.directory?(ARGV[0])
+  puts "The first argument must be either a PL to a Gazelle torrent, a torrentid, or a folder path that exists."
+  abort "Usage #1: ./redcurry.rb \"SOURCE_TORRENT_PL\" SOURCE TARGET\nUsage #2: ./redcurry.rb /path/to/folder/with/.torrent/files SOURCE TARGET"
+end
+source = ARGV[1]
+target = ARGV[2]
+
+config = YAML::load_file('./curry.yaml')
+
+if !config.key?(source) or !config.key?(target)
+  abort "Either '#{source}' or '#{target}' is not specified in YAML. Note: the keys are case sensitive."
+end
+
+$SEEDING_FOLDER = config["seeding_folder"]
+$SOURCE_COOKIE = config[source]["cookie"]
+$TARGET_COOKIE = config[target]["cookie"]
+$SOURCE_WEB_URL = config[source]["url"]
+$TARGET_WEB_URL = config[target]["url"]
+$SOURCE_ANNOUNCE_HOST = config[source]["announce_host"]
+$TARGET_ANNOUNCE_HOST = config[target]["announce_host"]
+$SOURCE_ACRONYM = config[source]["acronym"]
+$TARGET_ACRONYM = config[target]["acronym"]
+$NEW_TORRENT_DIR = config["torrent_folder"]
 
 $MKTORRENT = ""
 mktorrents = %x[which -a mktorrent].split("\n")
