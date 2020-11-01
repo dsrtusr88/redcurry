@@ -325,9 +325,9 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
 
   print "Currying: #{source_fpath} | #{source_short} ===> #{target_short} ... "
   begin
-    bbcode_description = "bbBody"
-    if $SOURCE_ACRONYM == "OPS"
-      bbcode_description = "wikiBBcode"
+    album_description = source_response["group"]["bbBody"]
+    if album_description.nil?
+      album_description = source_response["group"]["wikiBBcode"]
     end
     releasetype = rlstype(source_response["group"]["releaseType"])
     target_payload = {
@@ -342,7 +342,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
       format: source_response["torrent"]["format"],
       media: source_response["torrent"]["media"],
       bitrate: source_response["torrent"]["encoding"],
-      album_desc: source_response["group"][bbcode_description],
+      album_desc: album_description,
       release_desc: "[align=center]" + banner + "\n" + redcurry + "\n" + thanks_to_uploader + "[/align]" + "\n" + HTMLEntities.new.decode(source_response["torrent"]["description"]),
       tags: source_response["group"]["tags"].join(","),
       image: source_response["group"]["wikiImage"],
