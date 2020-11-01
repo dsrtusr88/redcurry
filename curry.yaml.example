@@ -1,12 +1,14 @@
 seeding_folder: "/path/to/your/seeding/folder"
 torrent_folder: "./torrent-files"
-source:
+PUR:
   cookie: "./source_cookie.txt"
+  api_key: ajshdiquwhd9812y912y8e11231o2
   url: "https://purple.ch"
   acronym: "PUR"
   announce_host: "purpsfor.me"
-target:
+CUR:
   cookie: "./target_cookie.txt"
+  api_key: hiewf8712yodhih9827y98e919012
   url: "https://curry.network"
   announce_host: "home.curry.ch"
   acronym: "CUR"

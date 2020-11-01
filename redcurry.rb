@@ -27,7 +27,9 @@ end
 
 $SEEDING_FOLDER = config["seeding_folder"]
 $SOURCE_COOKIE = config[source]["cookie"]
+$SOURCE_API_KEY = config[source]["api_key"]
 $TARGET_COOKIE = config[target]["cookie"]
+$TARGET_API_KEY = config[target]["api_key"]
 $SOURCE_WEB_URL = config[source]["url"]
 $TARGET_WEB_URL = config[target]["url"]
 $SOURCE_ANNOUNCE_HOST = config[source]["announce_host"]
@@ -99,6 +101,32 @@ class GazelleAPI
     parsed_res["response"]
   end
 
+  def set_api_key(key)
+    connection.headers["Authorization"] = key
+    @authenticated = true
+  end
+
+  def post(resource, parameters = {})
+    unless authenticated?
+      raise AuthError
+    end
+
+    res = connection.post "/ajax.php?action=#{resource}", parameters
+
+    if res.status == 302 && res["location"] == "login.php"
+      raise AuthError
+    elsif !res.success?
+      raise UploadError.new "HTTP status: #{res.status}."
+    end
+
+    parsed_res = JSON.parse res.body
+
+    if parsed_res["status"] == "failure" || parsed_res["status"] == 400
+      raise UploadError.new "#{parsed_res["error"]}"
+    end
+    parsed_res["response"]
+  end
+
   def upload(payload)
     unless authenticated?
       raise AuthError
@@ -126,6 +154,9 @@ end
 if File.exist? $SOURCE_COOKIE
   sourceAPI = GazelleAPI.new($SOURCE_WEB_URL)
   sourceAPI.set_cookie File.read($SOURCE_COOKIE)
+  unless $SOURCE_API_KEY.nil?
+    sourceAPI.set_api_key($SOURCE_API_KEY)
+  end
 else
   abort "ERROR: MISSING $SOURCE_COOKIE."
 end
@@ -133,6 +164,9 @@ end
 if File.exist? $TARGET_COOKIE
   targetAPI = GazelleAPI.new($TARGET_WEB_URL)
   targetAPI.set_cookie File.read($TARGET_COOKIE)
+  unless $TARGET_API_KEY.nil?
+    targetAPI.set_api_key($TARGET_API_KEY)
+  end
 else
   abort "ERROR: MISSING $TARGET_COOKIE."
 end
@@ -227,6 +261,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
   if source_response.nil?
     source_response = sourceAPI.fetch :torrent, id: torrent_id
   end
+
   source_fpath    = HTMLEntities.new.decode(source_response["torrent"]["filePath"]).gsub(/\u200E+/, "")
   source_srcdir   = "#{$SEEDING_FOLDER}/#{source_fpath}"
 
@@ -283,6 +318,11 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     return
   end
 
+  if HTMLEntities.new.decode(source_response["torrent"]["description"]).include? $TARGET_ACRONYM 
+    puts "SKIPPING #{source_fpath}: Release description contains a reference to target tracker: #{$TARGET_ACRONYM}"
+    return
+  end
+
   print "Currying: #{source_fpath} | #{source_short} ===> #{target_short} ... "
   begin
     bbcode_description = "bbBody"
@@ -319,7 +359,16 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     if source_response["torrent"]["hasLog"]
       target_payload[:logfiles] = logfiles
     end
-    new_group = targetAPI.upload(target_payload)
+    new_torrent_url = ""
+    if !$TARGET_API_KEY.empty?
+      upload_response = targetAPI.post("upload", target_payload) 
+      upload_response = upload_response.kind_of?(Array) ? upload_response[0] : upload_response
+      # XXX: DEBUG
+      # pp upload_response
+      new_torrent_url = "#{$TARGET_WEB_URL}/torrents.php?torrentid=#{upload_response['torrentId']}"
+    else
+      new_torrent_url = "#{$TARGET_WEB_URL}/#{targetAPI.upload(target_payload)}"
+    end
   rescue => e
     system("rm", "#{source_fpath}-#{target_short}.torrent")
     puts "FAILED: #{e.message}"
@@ -329,7 +378,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     elsif File.directory?($NEW_TORRENT_DIR)
       system("mv", "#{source_fpath}-#{target_short}.torrent", $NEW_TORRENT_DIR)
     end
-    puts "done: #{$TARGET_WEB_URL}/#{new_group}"
+    puts "done: #{new_torrent_url}"
   end
 end
 
