@@ -360,7 +360,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
       target_payload[:logfiles] = logfiles
     end
     new_torrent_url = ""
-    if !$TARGET_API_KEY.empty?
+    if !$TARGET_API_KEY.nil?
       upload_response = targetAPI.post("upload", target_payload) 
       upload_response = upload_response.kind_of?(Array) ? upload_response[0] : upload_response
       # XXX: DEBUG
