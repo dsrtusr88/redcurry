@@ -115,8 +115,6 @@ class GazelleAPI
 
     if res.status == 302 && res["location"] == "login.php"
       raise AuthError
-    elsif !res.success?
-      raise UploadError.new "HTTP status: #{res.status}."
     end
 
     parsed_res = JSON.parse res.body
@@ -151,24 +149,26 @@ class GazelleAPI
   end
 end
 
-if File.exist? $SOURCE_COOKIE
-  sourceAPI = GazelleAPI.new($SOURCE_WEB_URL)
+sourceAPI = GazelleAPI.new($SOURCE_WEB_URL)
+if $SOURCE_COOKIE && File.exist?($SOURCE_COOKIE)
   sourceAPI.set_cookie File.read($SOURCE_COOKIE)
-  unless $SOURCE_API_KEY.nil?
-    sourceAPI.set_api_key($SOURCE_API_KEY)
-  end
-else
-  abort "ERROR: MISSING $SOURCE_COOKIE."
+end
+unless $SOURCE_API_KEY.nil?
+  sourceAPI.set_api_key($SOURCE_API_KEY)
+end
+if !sourceAPI.authenticated?
+  abort "ERROR: For #{$SOURCE_WEB_URL}, please specify a valid cookie file, or API key, in curry.yaml."
 end
 
-if File.exist? $TARGET_COOKIE
-  targetAPI = GazelleAPI.new($TARGET_WEB_URL)
+targetAPI = GazelleAPI.new($TARGET_WEB_URL)
+if $TARGET_COOKIE && File.exist?($TARGET_COOKIE)
   targetAPI.set_cookie File.read($TARGET_COOKIE)
-  unless $TARGET_API_KEY.nil?
-    targetAPI.set_api_key($TARGET_API_KEY)
-  end
-else
-  abort "ERROR: MISSING $TARGET_COOKIE."
+end
+unless $TARGET_API_KEY.nil?
+  targetAPI.set_api_key($TARGET_API_KEY)
+end
+if !targetAPI.authenticated?
+  abort "ERROR: For #{$TARGET_WEB_URL}, please specify a valid cookie file, or API key, in curry.yaml."
 end
 
 target_index   = targetAPI.fetch :index
