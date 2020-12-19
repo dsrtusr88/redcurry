@@ -95,7 +95,7 @@ class GazelleAPI
     parsed_res = JSON.parse res.body
 
     if parsed_res["status"] == "failure"
-      raise APIError
+      raise APIError, parsed_res["error"]
     end
 
     parsed_res["response"]
