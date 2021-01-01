@@ -87,9 +87,9 @@ class GazelleAPI
     res = connection.get "/ajax.php", parameters.merge(:action => resource)
 
     if res.status == 302 && res["location"] == "login.php"
-      raise AuthError, connection.host, res.status
+      raise AuthError, connection.host
     elsif !res.success?
-      raise APIError, connection.host, res.status
+      raise APIError, connection.host
     end
 
     parsed_res = JSON.parse res.body
