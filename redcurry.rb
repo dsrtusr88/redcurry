@@ -297,10 +297,12 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
   source_musicInfo = source_response["group"]["musicInfo"]
   artists = []
   importance = []
+  contrib_artists = []
   artist_types.each do |artistType, typeNumber|
     source_musicInfo[artistType.to_s].each do |artist|
       artists.push(HTMLEntities.new.decode(artist['name']))
       importance.push(typeNumber.to_s)
+      contrib_artists.push(HTMLEntities.new.decode(artist['name'])) if typeNumber.to_s != "1"
     end
   end
 
@@ -332,6 +334,8 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     releasetype = rlstype(source_response["group"]["releaseType"])
     target_payload = {
       artists: artists,
+      idols: artists,
+      contrib_artists: contrib_artists,
       importance: importance,
       type: 0,
       title: HTMLEntities.new.decode(source_response["group"]["name"]),
@@ -340,6 +344,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
       file_input: Faraday::UploadIO.new("#{source_fpath}-#{target_short}.torrent", 'application/x-bittorrent'),
       releasetype: releasetype,
       format: source_response["torrent"]["format"],
+      audioformat: source_response["torrent"]["format"],
       media: source_response["torrent"]["media"],
       bitrate: source_response["torrent"]["encoding"],
       album_desc: album_description,
@@ -350,9 +355,11 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     }
     target_payload[:remaster] = "on"
     target_payload[:remaster_year] = source_response["torrent"]["remasterYear"] == 0 ? source_response["group"]["year"] : source_response["torrent"]["remasterYear"]
+    target_payload[:remasteryear] = target_payload[:remaster_year]
     target_payload[:remaster_record_label] = source_response["torrent"]["remasterRecordLabel"].empty? ? source_response["group"]["recordLabel"] : source_response["torrent"]["remasterRecordLabel"]
     target_payload[:remaster_catalogue_number] = source_response["torrent"]["remasterCatalogueNumber"].empty? ? source_response["group"]["catalogueNumber"] : source_response["torrent"]["remasterCatalogueNumber"]
     target_payload[:remaster_title] = source_response["torrent"]["remasterTitle"]
+    target_payload[:remastertitle] = target_payload[:remaster_title]
     if source_response["torrent"]["scene"]
       target_payload[:scene] = "on"
     end
@@ -363,8 +370,6 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     if !$TARGET_API_KEY.nil?
       upload_response = targetAPI.post("upload", target_payload) 
       upload_response = upload_response.kind_of?(Array) ? upload_response[0] : upload_response
-      # XXX: DEBUG
-      # pp upload_response
       new_torrent_url = "#{$TARGET_WEB_URL}/torrents.php?torrentid=#{upload_response['torrentId']}"
     else
       new_torrent_url = "#{$TARGET_WEB_URL}/#{targetAPI.upload(target_payload)}"
