@@ -211,7 +211,7 @@ def process_torrents(sourceAPI, folder)
   return curries
 end
 
-def rlstype(source_rlstype)
+def rlstype(source_rlstype, target_short=nil)
   ops_to_red = {
     1 => 1,
     3 => 3,
@@ -248,7 +248,16 @@ def rlstype(source_rlstype)
     19 => 17,
     21 => 21
   }
-  if $SOURCE_ACRONYM == "OPS"
+  if target_short == "sugoimusic.me"
+    case source_rlstype
+    when 5
+      return 1
+    when 9
+      return 2
+    else
+      return 0
+    end
+  elsif $SOURCE_ACRONYM == "OPS"
     return ops_to_red[source_rlstype]
   elsif $TARGET_ACRONYM == "OPS"
     return red_to_ops[source_rlstype]
@@ -296,13 +305,18 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
 
   source_musicInfo = source_response["group"]["musicInfo"]
   artists = []
+  idols = []
   importance = []
   contrib_artists = []
   artist_types.each do |artistType, typeNumber|
     source_musicInfo[artistType.to_s].each do |artist|
       artists.push(HTMLEntities.new.decode(artist['name']))
       importance.push(typeNumber.to_s)
-      contrib_artists.push(HTMLEntities.new.decode(artist['name'])) if typeNumber.to_s != "1"
+      if typeNumber.to_s != "1"
+        contrib_artists.push(HTMLEntities.new.decode(artist['name']))
+      else
+        idols.push(HTMLEntities.new.decode(artist['name']))
+      end
     end
   end
 
@@ -334,7 +348,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     releasetype = rlstype(source_response["group"]["releaseType"])
     target_payload = {
       artists: artists,
-      idols: artists,
+      idols: idols,
       contrib_artists: contrib_artists,
       importance: importance,
       type: 0,
@@ -353,6 +367,10 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
       image: source_response["group"]["wikiImage"],
       submit: "true"
     }
+    if target_short == "sugoimusic.me"
+      target_payload[:type] = rlstype(releasetype, target_short="sugoimusic.me")
+      target_payload[:media] = target_payload[:media] == "WEB" ? "Web" : target_payload[:media]
+    end
     target_payload[:remaster] = "on"
     target_payload[:remaster_year] = source_response["torrent"]["remasterYear"] == 0 ? source_response["group"]["year"] : source_response["torrent"]["remasterYear"]
     target_payload[:remasteryear] = target_payload[:remaster_year]
