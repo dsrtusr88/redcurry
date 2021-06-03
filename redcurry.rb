@@ -374,8 +374,8 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     target_payload[:remaster] = "on"
     target_payload[:remaster_year] = source_response["torrent"]["remasterYear"] == 0 ? source_response["group"]["year"] : source_response["torrent"]["remasterYear"]
     target_payload[:remasteryear] = target_payload[:remaster_year]
-    target_payload[:remaster_record_label] = source_response["torrent"]["remasterRecordLabel"].empty? ? source_response["group"]["recordLabel"] : source_response["torrent"]["remasterRecordLabel"]
-    target_payload[:remaster_catalogue_number] = source_response["torrent"]["remasterCatalogueNumber"].empty? ? source_response["group"]["catalogueNumber"] : source_response["torrent"]["remasterCatalogueNumber"]
+    target_payload[:remaster_record_label] = source_response["torrent"]["remasterRecordLabel"].to_s.empty? ? source_response["group"]["recordLabel"] : source_response["torrent"]["remasterRecordLabel"]
+    target_payload[:remaster_catalogue_number] = source_response["torrent"]["remasterCatalogueNumber"].to_s.empty? ? source_response["group"]["catalogueNumber"] : source_response["torrent"]["remasterCatalogueNumber"]
     target_payload[:remaster_title] = source_response["torrent"]["remasterTitle"]
     target_payload[:remastertitle] = target_payload[:remaster_title]
     if source_response["torrent"]["scene"]
