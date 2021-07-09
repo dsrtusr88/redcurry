@@ -388,7 +388,8 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     if !$TARGET_API_KEY.nil?
       upload_response = targetAPI.post("upload", target_payload) 
       upload_response = upload_response.kind_of?(Array) ? upload_response[0] : upload_response
-      new_torrent_url = "#{$TARGET_WEB_URL}/torrents.php?torrentid=#{upload_response['torrentId']}"
+      torrentKey = TARGET_ANNOUNCE_HOST.include?("opsfet") ? "torrentId" : "torrentid"
+      new_torrent_url = "#{$TARGET_WEB_URL}/torrents.php?torrentid=#{upload_response[torrentKey]}"
     else
       new_torrent_url = "#{$TARGET_WEB_URL}/#{targetAPI.upload(target_payload)}"
     end
