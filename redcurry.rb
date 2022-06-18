@@ -36,20 +36,11 @@ $SOURCE_ANNOUNCE_HOST = config[source]["announce_host"]
 $TARGET_ANNOUNCE_HOST = config[target]["announce_host"]
 $SOURCE_ACRONYM = config[source]["acronym"]
 $TARGET_ACRONYM = config[target]["acronym"]
-$NEW_TORRENT_DIR = config["torrent_folder"]
-
-$MKTORRENT = ""
-mktorrents = %x[which -a mktorrent].split("\n")
-if mktorrents.empty?
-  abort "ERROR: Could not find mktorrent."
+if config[target]["torrent_folder"]
+  $NEW_TORRENT_DIR = config[target]["torrent_folder"]
+else
+  $NEW_TORRENT_DIR = config["torrent_folder"]
 end
-mktorrents.each do |mktorrent|
-  version = %x[#{mktorrent} -v 2>&1].scan(/mktorrent (\d).(\d)/).flatten.join(".")
-  if version.to_f >= 1.1
-    $MKTORRENT = mktorrent
-  end
-end
-abort "ERROR: mktorrent 1.1+ required." if $MKTORRENT.empty?
 
 # cf. https://github.com/britishtea/whatcd/
 class GazelleAPI
@@ -57,7 +48,7 @@ class GazelleAPI
   APIError     = Class.new StandardError
   UploadError  = Class.new StandardError
 
-  attr_accessor :userid
+  attr_accessor :userid, :authkey, :passkey
   attr_reader :connection
 
   def initialize(tracker)
@@ -115,6 +106,10 @@ class GazelleAPI
 
     if res.status == 302 && res["location"] == "login.php"
       raise AuthError
+    end
+
+    if res.status == 500
+      raise UploadError.new "Target tracker returned HTTP 500 Internal Server Error"
     end
 
     parsed_res = JSON.parse res.body
@@ -175,7 +170,10 @@ target_index   = targetAPI.fetch :index
 target_authkey = target_index["authkey"]
 target_passkey = target_index["passkey"]
 
-sourceAPI.userid = sourceAPI.fetch(:index)["id"]
+source_index        = sourceAPI.fetch :index
+sourceAPI.userid    = source_index["id"]
+sourceAPI.authkey   = source_index["authkey"]
+sourceAPI.passkey   = source_index["passkey"]
 
 def process_torrents(sourceAPI, folder)
   curries = []
@@ -278,11 +276,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
   target_short = $TARGET_WEB_URL.split("://").last.gsub(/[^[:alpha:]\.]/, "")
 
   if source_fpath == ""
-    abort "Music not enclosed in a folder. Report it!"
-  end
-
-  unless File.directory? source_srcdir
-    abort "#{source_fpath} not found in #{$SEEDING_FOLDER}; nothing to curry."
+    abort "ERROR: Music not enclosed in a folder. Report it!"
   end
 
   artist_types = {
@@ -321,17 +315,50 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
   end
 
   if source_response["torrent"]["hasLog"]
-    logfiles = source_response["torrent"]["fileList"].split("|||").map {|x| HTMLEntities.new.decode(x).gsub(/{{{\d+}}}/, '')}.select {|f| f.end_with? ".log"}
-    logfiles = logfiles.map do |log|
-      Faraday::UploadIO.new("#{source_srcdir}/#{log}", 'application/octet-stream')
+    if File.directory?(source_srcdir)
+      logfiles = source_response["torrent"]["fileList"].split("|||").map {|x| HTMLEntities.new.decode(x).gsub(/{{{\d+}}}/, '')}.select {|f| f.end_with? ".log"}
+      logfiles = logfiles.map do |log|
+        Faraday::UploadIO.new("#{source_srcdir}/#{log}", 'application/octet-stream')
+      end
+    elsif $TARGET_ANNOUNCE_HOST.include?("opsfet")
+      puts "SKIPPING: When uploading to #{$TARGET_ACRONYM}, #{source_fpath} must be in #{$SEEDING_FOLDER} because it contains a .log file. Submit a bug report at #{$TARGET_ACRONYM}."
+      return
+    else
+      puts "NOTE: #{source_fpath} not found in #{$SEEDING_FOLDER}, but this torrent has log(s), so you will have to manually upload them to #{$TARGET_ACRONYM}."
     end
   end
-
-  %x[#{$MKTORRENT} -p -s "#{$TARGET_ACRONYM}" -o "#{source_fpath.gsub(/\$/,"\\$")}-#{target_short}.torrent" -a "https://#{$TARGET_ANNOUNCE_HOST}/#{target_passkey}/announce" "#{source_srcdir.gsub(/\$/,"\\$")}"]
-
-  if $?.exitstatus != 0
-    puts "SKIPPING #{source_fpath}: Error creating .torrent file."
-    return
+  if File.directory?(source_srcdir)
+    mktorrent = ""
+    mktorrents = %x[which -a mktorrent].split("\n")
+    if mktorrents.empty?
+      abort "ERROR: Could not find mktorrent."
+    end
+    mktorrents.each do |mkt_binary|
+      version = %x[#{mkt_binary} -v 2>&1].scan(/mktorrent (\d).(\d)/).flatten.join(".")
+      if version.to_f >= 1.1
+        mktorrent = mkt_binary
+      end
+    end
+    abort "ERROR: mktorrent 1.1+ required." if mktorrent.empty?
+    %x[#{mktorrent} -p -s "#{$TARGET_ACRONYM}" -o "#{source_fpath.gsub(/\$/,"\\$")}-#{target_short}.torrent" -a "https://#{$TARGET_ANNOUNCE_HOST}/#{target_passkey}/announce" "#{source_srcdir.gsub(/\$/,"\\$")}"]
+    if $?.exitstatus != 0
+      puts "SKIPPING #{source_fpath}: Error creating .torrent file."
+      return
+    end
+  else
+    if $SOURCE_ACRONYM == "OPS"
+      puts "WARNING: #{source_fpath}: files not found in #{$SEEDING_FOLDER}, downloading .torrent file from #{$SOURCE_ACRONYM}, which may punish users for downloading .torrent files they do not snatch."
+    end
+    source_torrent_url = "#{$SOURCE_WEB_URL}/torrents.php?action=download&id=#{torrent_id}&authkey=#{sourceAPI.authkey}&torrent_pass=#{sourceAPI.passkey}"
+    http_conn = Faraday.new
+    response = http_conn.get(source_torrent_url)
+    File.open("#{$SOURCE_ACRONYM}-#{torrent_id}.torrent", 'wb') { |fp| fp.write(response.body) }
+    meta = BEncode.load_file("#{$SOURCE_ACRONYM}-#{torrent_id}.torrent")
+    meta["info"]["source"] = $TARGET_ACRONYM
+    meta["comment"] = ""
+    meta["announce"] = "https://#{$TARGET_ANNOUNCE_HOST}/#{target_passkey}/announce"
+    File.open("#{$SOURCE_ACRONYM}-#{torrent_id}-to-#{$TARGET_ACRONYM}.torrent", 'wb') { |fp| fp.write(meta.bencode) }
+    system("rm", "#{$SOURCE_ACRONYM}-#{torrent_id}.torrent")
   end
 
   if HTMLEntities.new.decode(source_response["torrent"]["description"]).include? $TARGET_ACRONYM 
@@ -339,13 +366,15 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     return
   end
 
-  print "Currying: #{source_fpath} | #{source_short} ===> #{target_short} ... "
+  print "CURRYING: #{source_fpath} | #{source_short} ===> #{target_short} ... "
   begin
     album_description = source_response["group"]["bbBody"]
     if album_description.nil?
       album_description = source_response["group"]["wikiBBcode"]
     end
     releasetype = rlstype(source_response["group"]["releaseType"])
+    torrent_filename =  File.directory?(source_srcdir) ? "#{source_fpath}-#{target_short}.torrent" : "#{$SOURCE_ACRONYM}-#{torrent_id}-to-#{$TARGET_ACRONYM}.torrent"
+    file_input = Faraday::UploadIO.new(torrent_filename, 'application/x-bittorrent')
     target_payload = {
       artists: artists,
       idols: idols,
@@ -355,7 +384,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
       title: HTMLEntities.new.decode(source_response["group"]["name"]),
       year: source_response["group"]["year"],
       auth: target_authkey,
-      file_input: Faraday::UploadIO.new("#{source_fpath}-#{target_short}.torrent", 'application/x-bittorrent'),
+      file_input: file_input,
       releasetype: releasetype,
       format: source_response["torrent"]["format"],
       audioformat: source_response["torrent"]["format"],
@@ -381,7 +410,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     if source_response["torrent"]["scene"]
       target_payload[:scene] = "on"
     end
-    if source_response["torrent"]["hasLog"]
+    if source_response["torrent"]["hasLog"] && File.directory?(source_srcdir)
       target_payload[:logfiles] = logfiles
     end
     new_torrent_url = ""
@@ -394,13 +423,16 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
       new_torrent_url = "#{$TARGET_WEB_URL}/#{targetAPI.upload(target_payload)}"
     end
   rescue => e
-    system("rm", "#{source_fpath}-#{target_short}.torrent")
-    puts "FAILED: #{e.message}"
+    system("rm", torrent_filename)
+    puts "FAILED: #{e.backtrace}"
   else
     if !folder.nil?
-      system("mv", "#{source_fpath}-#{target_short}.torrent", folder)
+      # cp + rm instead of mv to accomodate certain setups, e.g. setgid folders
+      system("cp", torrent_filename, folder)
+      system("rm", torrent_filename)
     elsif File.directory?($NEW_TORRENT_DIR)
-      system("mv", "#{source_fpath}-#{target_short}.torrent", $NEW_TORRENT_DIR)
+      system("cp", torrent_filename, $NEW_TORRENT_DIR)
+      system("rm", torrent_filename)
     end
     puts "done: #{new_torrent_url}"
   end
@@ -413,6 +445,7 @@ if torrent_id == 0
     abort "No .torrents to process."
   end
   curries.each do |task|
+    torrent_id = task[:source_response]["torrent"]["id"]
     curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, task[:source_response], task[:folder])
   end
 else
