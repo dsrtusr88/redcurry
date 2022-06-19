@@ -320,11 +320,8 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
       logfiles = logfiles.map do |log|
         Faraday::UploadIO.new("#{source_srcdir}/#{log}", 'application/octet-stream')
       end
-    elsif $TARGET_ANNOUNCE_HOST.include?("opsfet")
-      puts "SKIPPING: When uploading to #{$TARGET_ACRONYM}, #{source_fpath} must be in #{$SEEDING_FOLDER} because it contains a .log file. Submit a bug report at #{$TARGET_ACRONYM}."
-      return
     else
-      puts "NOTE: #{source_fpath} not found in #{$SEEDING_FOLDER}, but this torrent has log(s), so you will have to manually upload them to #{$TARGET_ACRONYM}."
+      puts "NOTE: #{source_fpath} not found in #{$SEEDING_FOLDER}, but this torrent has log(s), so remember to manually upload them to #{$TARGET_ACRONYM}."
     end
   end
   if File.directory?(source_srcdir)
@@ -410,8 +407,13 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     if source_response["torrent"]["scene"]
       target_payload[:scene] = "on"
     end
-    if source_response["torrent"]["hasLog"] && File.directory?(source_srcdir)
-      target_payload[:logfiles] = logfiles
+    if source_response["torrent"]["hasLog"]
+      if File.directory?(source_srcdir)
+        target_payload[:logfiles] = logfiles
+      elsif $TARGET_ANNOUNCE_HOST.include?("opsfet")
+        # accommodate broken behavior at OPS
+        target_payload[:logfiles] = [Faraday::UploadIO.new(StringIO.new(""), 'application/octet-stream')]
+      end
     end
     new_torrent_url = ""
     if !$TARGET_API_KEY.nil?
@@ -424,7 +426,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     end
   rescue => e
     system("rm", torrent_filename)
-    puts "FAILED: #{e.backtrace}"
+    puts "FAILED: #{e.backtrace}\n#{e.message}"
   else
     if !folder.nil?
       # cp + rm instead of mv to accomodate certain setups, e.g. setgid folders
