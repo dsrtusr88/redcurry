@@ -3,6 +3,7 @@
 require "json"
 require "yaml"
 require "faraday"
+require "faraday/multipart"
 require "faraday-cookie_jar"
 require "htmlentities"
 require "bencode"
