@@ -12,3 +12,9 @@ CUR:
   url: "https://curry.network"
   acronym: "CUR"
   announce_host: "home.curry.ch"
+SM:
+  cookie: "./sm_cookie.txt"
+  api_key: 543258712yodhih9827y98e91asdf
+  url: "https://awesome.me"
+  acronym: "SM"
+  announce_host: "tracker.awesome.me"
