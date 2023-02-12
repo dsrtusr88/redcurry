@@ -10,5 +10,5 @@ CUR:
   cookie: "./target_cookie.txt"
   api_key: hiewf8712yodhih9827y98e919012
   url: "https://curry.network"
-  announce_host: "home.curry.ch"
   acronym: "CUR"
+  announce_host: "home.curry.ch"
