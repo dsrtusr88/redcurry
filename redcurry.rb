@@ -110,13 +110,13 @@ class GazelleAPI
     end
 
     if res.status == 500
-      raise UploadError.new "Target tracker returned HTTP 500 Internal Server Error"
+      raise UploadError, "Target tracker returned HTTP 500 Internal Server Error"
     end
 
     parsed_res = JSON.parse res.body
 
     if parsed_res["status"] == "failure" || parsed_res["status"] == 400
-      raise UploadError.new "#{parsed_res["error"]}"
+      raise UploadError, "#{parsed_res["error"]}"
     end
     parsed_res["response"]
   end
@@ -132,15 +132,15 @@ class GazelleAPI
         html_response = Nokogiri::HTML(res.body)
         html_response.css('div.thin > p').each do |para|
           if para[:style].start_with? "color: red"
-            raise UploadError.new para.inner_text.strip
+            raise UploadError, para.inner_text.strip
           end
         end
-        raise UploadError.new "Unidentified error. Trying uploading manually."
+        raise UploadError, "Unidentified error. Trying uploading manually."
       else
         raise APIError
       end
     end
-    
+
     return res.headers["location"]
   end
 end
@@ -265,7 +265,7 @@ def rlstype(source_rlstype, target_short=nil)
   end
 end
 
-def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, source_response = nil, folder = nil)  
+def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, source_response = nil, folder = nil)
   if source_response.nil?
     source_response = sourceAPI.fetch :torrent, id: torrent_id
   end
@@ -359,7 +359,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     system("rm", "#{$SOURCE_ACRONYM}-#{torrent_id}.torrent")
   end
 
-  if HTMLEntities.new.decode(source_response["torrent"]["description"]).include? $TARGET_ACRONYM 
+  if HTMLEntities.new.decode(source_response["torrent"]["description"]).include? $TARGET_ACRONYM
     puts "SKIPPING #{source_fpath}: Release description contains a reference to target tracker: #{$TARGET_ACRONYM}"
     return
   end
@@ -418,7 +418,7 @@ def curry(sourceAPI, targetAPI, target_authkey, target_passkey, torrent_id, sour
     end
     new_torrent_url = ""
     if !$TARGET_API_KEY.nil?
-      upload_response = targetAPI.post("upload", target_payload) 
+      upload_response = targetAPI.post("upload", target_payload)
       upload_response = upload_response.kind_of?(Array) ? upload_response[0] : upload_response
       torrentKey = $TARGET_ANNOUNCE_HOST.include?("opsfet") ? "torrentId" : "torrentid"
       new_torrent_url = "#{$TARGET_WEB_URL}/torrents.php?torrentid=#{upload_response[torrentKey]}"
