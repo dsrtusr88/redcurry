@@ -205,7 +205,7 @@ def process_torrents(sourceAPI, folder)
     print "Querying source tracker for infohash (#{infohash}) ... "
     source_response = sourceAPI.fetch :torrent, :hash => infohash.upcase
     puts "found: #{HTMLEntities.new.decode(source_response["torrent"]["filePath"])}"
-    curries.push({source_response: source_response, folder: folder})
+    curries.push({source_response: source_response, folder: $NEW_TORRENT_DIR})
   end
   return curries
 end
